@@ -428,8 +428,8 @@ class Embedding:
         print(str(datetime.now()) + ": Start embedding...")
         roots = Embedding.ExtractRoots(pathsDict)        
         if isEmbeddingHierarchical:
-            print(str(datetime.now()) + ": Start computing distances...")
-            Embedding.RecursivelyComputeDistances(roots, 0, edgesDict, childrenDict)
+            #print(str(datetime.now()) + ": Start computing distances...")
+            #Embedding.RecursivelyComputeDistances(roots, 0, edgesDict, childrenDict)
             print(str(datetime.now()) + ": Start embedding hierarchical...")
             Embedding.RecursivelyEmbedHierarchical(roots, -1, 0, edgesDict, fixedCoordinate, coordinates, childrenDict)
         else:
