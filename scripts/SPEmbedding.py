@@ -469,11 +469,11 @@ def Workflow(simGraphFile, clusteringHierarchyFile, metaDataFile, namesOfPropert
     print(str(datetime.now()) + ": Start ..")
     roots = ExtractRoots(pathsDict)        
     if isEmbeddingHierarchical:
-        print(str(datetime.now()) + ": Start computing distances...")
-        RecursivelyComputeDistances(roots, 0, edgesDict, childrenDict)
-        print(str(datetime.now()) + ": Start writing distances...")
-        CreateDirIfDoesNotExist(dirname1)
-        WriteEdgesFile(edgesDict, dirname1)
+        #print(str(datetime.now()) + ": Start computing distances...")
+        #RecursivelyComputeDistances(roots, 0, edgesDict, childrenDict)
+        #print(str(datetime.now()) + ": Start writing distances...")
+        #CreateDirIfDoesNotExist(dirname1)
+        #WriteEdgesFile(edgesDict, dirname1)
         print(str(datetime.now()) + ": Start embedding hierarchical...")
         RecursivelyEmbedHierarchical(roots, -1, 0, edgesDict, fixedCoordinate, coordinates, childrenDict, precision)
     else:
@@ -486,7 +486,7 @@ def Workflow(simGraphFile, clusteringHierarchyFile, metaDataFile, namesOfPropert
     RecursivelyCreateDataFileAndFolders(pointsDict, roots, 0, dirname1, childrenDict)
     if bigDataMode == "false": 
         CreateSmallDataJSONFile(pointsDict, dirname1)
-    shutil.copyfile(namesOfPropertiesFile, os.path.join(dirname1, "NamesOfProperties.json"))
+    shutil.copy(namesOfPropertiesFile, dirname1)
     CreateMetaDataFileForBigDataMode(dirname1, bigDataMode)
     print(str(datetime.now()) + ": Finished writing output.")
 #endregion
