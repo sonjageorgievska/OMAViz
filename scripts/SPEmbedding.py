@@ -10,7 +10,7 @@ from datetime import datetime
 import argparse as argp
 
 
-# parse command-line args
+#region parse command-line args
 parser = argp.ArgumentParser(
    description = 'This script creates input files for CCluster hierarchical cluster visualization tool.')
 
@@ -40,6 +40,7 @@ parser.add_argument(
    help = 'precision of embedding (between 1 and 30)')
 
 args = parser.parse_args()
+#endregion
            
 #class Embedding:
 
@@ -168,7 +169,7 @@ def MakeChildrenListPerParentPerLevel(pathsDict):
 
 def ConvertSimilarityGraphToDistance(similarityDict):
     """Converts non-negative real-valued similary scores to distances between 0 and 1 """
-    maxScore = max(similarityDict.values())
+    maxScore = max(similarityDict.values()) * 1.01
     if maxScore > 0:
         for key in similarityDict:
             similarityDict[key] = 1 - similarityDict[key] / maxScore # the distance is between 0 and 1
@@ -287,13 +288,13 @@ def RecursivelyEmbed(parents, grandparent, level,  edgesDict, fixedCoordinate, c
         if len(children) > 0:
             RecursivelyEmbed(children, parent, level+1,  edgesDict, fixedCoordinate, coordinates, childrenDict, indexedKeys, precision)                         
 
-def RecursivelyEmbedHierarchical(parents, grandparent, level,  edgesDict, fixedCoordinate, coordinates, childrenDict):
+def RecursivelyEmbedHierarchical(parents, grandparent, level,  edgesDict, fixedCoordinate, coordinates, childrenDict, precision):
     """Embeds the hierarchical data set in a hiearchical manner"""
-    FixCoordinatesHierarchical(parents, grandparent, edgesDict, fixedCoordinate, coordinates, level)
+    FixCoordinatesHierarchical(parents, grandparent, edgesDict, fixedCoordinate, coordinates, level, precision)
     for parent in parents:
         children = FindChildren(parent, level, childrenDict)                   
         if len(children) > 0:
-            RecursivelyEmbedHierarchical(children, parent, level+1,  edgesDict, fixedCoordinate, coordinates, childrenDict)     
+            RecursivelyEmbedHierarchical(children, parent, level+1,  edgesDict, fixedCoordinate, coordinates, childrenDict, precision)     
     
 def ComputeDistance(a,b, edgesDict, level, childrenDict):
     if a==b:
@@ -314,48 +315,39 @@ def ComputeDistance(a,b, edgesDict, level, childrenDict):
                 if len(children_b) > 0:
                     return AverageDistance([a], children_b, level+1, edgesDict,  childrenDict)
                 else: #if both sets of children are empty
-                    return 2
+                    return 1.0222
 
 def AverageDistance(set1, set2, level, edgesDict, childrenDict):
     averageDist = 0
     for i in set1:
-        for j in set2:
-            #if (i,j) not in edgesDict:
-            dist = ComputeDistance(i, j, edgesDict, level, childrenDict)
-            #edgesDict[i,j] = dist
-            #else:
-                #dist = edgesDict[i,j]
+        j = random.choice(set2) # a faster variant than to double - cycle       
+        if True: # just to preserve the alignment
+            dist = ComputeDistance(i, j, edgesDict, level, childrenDict)            
             averageDist += dist
-    averageDist /= len(set1) * len(set2)
+    averageDist /= len(set1) 
     return averageDist
+
+##original
+#def AverageDistance(set1, set2, level, edgesDict, childrenDict):
+#    averageDist = 0
+#    for i in set1:        
+#        for j in set2: #  an exact but slow variant        
+#            dist = ComputeDistance(i, j, edgesDict, level, childrenDict)            
+#            averageDist += dist
+#    averageDist /= len(set1) * len(set2)
+#    return averageDist
 
 def RecursivelyComputeDistances(set, level, edgesDict, childrenDict):
     for key in set:
-        children=FindChildren(key, level, childrenDict)
+        children = FindChildren(key, level, childrenDict)
         if len(children) > 0:
                 RecursivelyComputeDistances(children, level+1, edgesDict, childrenDict)
     for i in range(0, len(set)):
         for j in range(0, len(set)):  
-            if (i,j) not in edgesDict:                   
+            if (set[i],set[j]) not in edgesDict:                   
                 dist = ComputeDistance(set[i], set[j], edgesDict, level, childrenDict)
                 edgesDict[set[i],set[j]] = dist
 
-#def AverageDistance(set1, set2, level, edgesDict, childrenDict):
-#    averageDist = 0
-#    for i in set1:
-#        j = random.choice(set2)
-#        dist = ComputeDistance(i, j, edgesDict, level, childrenDict)
-#        averageDist += dist
-#    averageDist /= len(set1) * len(set2)
-#    return averageDist
-
-#def RecursivelyComputeDistances(set, level, edgesDict, childrenDict):        
-#    for i in range(0, len(set)-2):
-#        for j in range(i+1, len(set)-1):     
-#            if (set[i], set[j]) not in edgesDict:                                                    
-#                dist = ComputeDistance(set[i], set[j], edgesDict, level, childrenDict)
-#                edgesDict[set[i],set[j]] = dist    
-#endregion
 
 #region Write output
 
@@ -365,7 +357,7 @@ def CreateDataJSONFile(allPoints, parentsKeys, startingFolder):
         if key in allPoints:# a workaround, in a good dataset this should always hold
             currentPoints[key] = allPoints[key]
     string = json.dumps(currentPoints)
-    file = open(startingFolder + "\\data.json", "x")
+    file = open(os.path.join(startingFolder, "data.json"), "w")
     file.write(string)
     file.close()
 
@@ -374,18 +366,18 @@ def RecursivelyCreateDataFileAndFolders(allPoints, parentsKeys, level, startingF
     for parent in parentsKeys:
         childrenKeys = FindChildren(parent, level, childrenDict)
         if len(childrenKeys) > 0:
-            CreateDirIfDoesNotExist(startingFolder + "\\" + parent)
-            RecursivelyCreateDataFileAndFolders(allPoints, childrenKeys, level+1, startingFolder + "\\" + parent, childrenDict)       
+            CreateDirIfDoesNotExist(os.path.join(startingFolder, parent))
+            RecursivelyCreateDataFileAndFolders(allPoints, childrenKeys, level+1, os.path.join(startingFolder , parent), childrenDict)       
     
 def CreateSmallDataJSONFile(allPoints, startingFolder):
     string = json.dumps(allPoints)
-    file = open(startingFolder + "\\smalldata.json", "x")
+    file = open(os.path.join(startingFolder, "smalldata.json"), "w")
     file.write(string)
     file.close()
    
 def CreateMetaDataFileForBigDataMode(startingFolder, bigdatamode):
     string = "var bigData =" + bigdatamode + ";"
-    file = open(startingFolder + "\\MetaData.js", "x")
+    file = open(os.path.join(startingFolder, "MetaData.js"), "w")
     file.write(string)
     file.close()
 
@@ -416,6 +408,15 @@ def RemoveDirTreeIfExists(dirname):
     if os.path.exists(dirname):
         shutil.rmtree(dirname)
 
+def remap_keys(mapping):
+    return [{'key':k, 'value': v} for k, v in mapping.items()]
+
+def WriteEdgesFile(edgesDict, startingFolder):  
+    string = json.dumps(remap_keys(edgesDict)) 
+    file = open(os.path.join(startingFolder + "edgesDict.json"), "w")
+    file.write(string)
+    file.close()
+            
 #endregion 
 
 #region Workflow
@@ -430,7 +431,7 @@ def ConvertCoordinatesToList(fixedCoordinate):
     for key in fixedCoordinate:
         fixedCoordinate[key] = list(fixedCoordinate[key])
                        
-def Workflow(simGraphFile, clusteringHierarchyFile, metaDataFile, namesOfPropertiesFile, propertiesIntensitiesFile, baseDir, bigDataMode = "true", isEmbeddingHierarchical= True, isOSWindows = False, precision = 125):
+def Workflow(simGraphFile, clusteringHierarchyFile, metaDataFile, namesOfPropertiesFile, propertiesIntensitiesFile, baseDir, bigDataMode = "true", isEmbeddingHierarchical= True, isOSWindows = False, precision = 30):
     """ Runs all functions to read, embed in 3D and write data.
     simGraphFile contains the sparse similarity matrix.  Format: [id1] [id2]  [similarityScore] 
     clusteringHierarchyFile contains path in tree for every id. Format: [parent1ID.parent2ID.parent3ID.....parentNID] [id]
@@ -439,7 +440,7 @@ def Workflow(simGraphFile, clusteringHierarchyFile, metaDataFile, namesOfPropert
     propertiesIntensitiesFile contains the intensities of the properties per point. Format: [id] [intensityProperty1] [intensityProperty2] ... [intensityPropertyN]
     bigDataMode is "true" or "false", depending on the mode in which the application should run. If "false", then there is a slidebar for loading all points up to a level"""        
     print(str(datetime.now()) + ": Removing old data...")
-    dirname1 =  baseDir + "\\" + "data"
+    dirname1 =  os.path.join(baseDir, "data")
     if isOSWindows:
         dirname1 = "\\\\?\\" + dirname1  
     RemoveDirTreeIfExists(dirname1)
@@ -467,6 +468,9 @@ def Workflow(simGraphFile, clusteringHierarchyFile, metaDataFile, namesOfPropert
     if isEmbeddingHierarchical:
         #print(str(datetime.now()) + ": Start computing distances...")
         #RecursivelyComputeDistances(roots, 0, edgesDict, childrenDict)
+        #print(str(datetime.now()) + ": Start writing distances...")
+        #CreateDirIfDoesNotExist(dirname1)
+        #WriteEdgesFile(edgesDict, dirname1)
         print(str(datetime.now()) + ": Start embedding hierarchical...")
         RecursivelyEmbedHierarchical(roots, -1, 0, edgesDict, fixedCoordinate, coordinates, childrenDict, precision)
     else:
@@ -479,7 +483,7 @@ def Workflow(simGraphFile, clusteringHierarchyFile, metaDataFile, namesOfPropert
     RecursivelyCreateDataFileAndFolders(pointsDict, roots, 0, dirname1, childrenDict)
     if bigDataMode == "false": 
         CreateSmallDataJSONFile(pointsDict, "data")
-    shutil.copyfile(namesOfPropertiesFile, "data/NamesOfProperties.json")
+    shutil.copyfile(namesOfPropertiesFile, os.path.join("data", "NamesOfProperties.json"))
     CreateMetaDataFileForBigDataMode("data", bigDataMode)
     print(str(datetime.now()) + ": Finished writing output.")
 #endregion
@@ -487,9 +491,10 @@ def Workflow(simGraphFile, clusteringHierarchyFile, metaDataFile, namesOfPropert
 #region Main
 
 #calling in hierarchical embedding mode
-#Workflow("sim.txt", "clusters.txt", "oma-hogs_banana.meta", "NamesOfProperties.json","No", "false", True )
+#Workflow("sim.txt", "clusters.txt", "oma-hogs_banana.meta", "NamesOfProperties.json","No", os.getcwd(), "false", True, True, 1 )
+#Workflow("MUSAC-MUSAM.graph", "oma-hogs_banana.cls", "oma-hogs_banana.meta", "NamesOfProperties.json","No", os.getcwd(), "false", True, True, 1 )
 #calling in flat embedding mode
-#Workflow("MUSAC-MUSAM.graph", "oma-hogs_banana.cls", "oma-hogs_banana.meta", "NamesOfProperties.json","No", "false", False)
+#Workflow("MUSAC-MUSAM.graph", "oma-hogs_banana.cls", "oma-hogs_banana.meta", "NamesOfProperties.json","No", "false", False, True, 2)
 
 Workflow(args.graphFile, args.clustFile, args.metaFile, "NamesOfProperties.json","No", args.baseDir, "false", False, False, args.precision)
 #endregion
