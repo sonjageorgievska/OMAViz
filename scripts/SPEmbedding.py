@@ -338,15 +338,18 @@ def AverageDistance(set1, set2, level, edgesDict, childrenDict):
 #    return averageDist
 
 def RecursivelyComputeDistances(set, level, edgesDict, childrenDict):
+    print(str(datetime.now()) + ": Entered set:" + str(set)) 
     for key in set:
         children = FindChildren(key, level, childrenDict)
         if len(children) > 0:
                 RecursivelyComputeDistances(children, level+1, edgesDict, childrenDict)
+    print(str(datetime.now()) + ": Starting computations for set:" + str(set)) 
     for i in range(0, len(set)):
         for j in range(0, len(set)):  
             if (set[i],set[j]) not in edgesDict:                   
                 dist = ComputeDistance(set[i], set[j], edgesDict, level, childrenDict)
                 edgesDict[set[i],set[j]] = dist
+    print(str(datetime.now()) + ": Finished computations for set:" + str(set)) 
 
 
 #region Write output
@@ -466,11 +469,11 @@ def Workflow(simGraphFile, clusteringHierarchyFile, metaDataFile, namesOfPropert
     print(str(datetime.now()) + ": Start ..")
     roots = ExtractRoots(pathsDict)        
     if isEmbeddingHierarchical:
-        #print(str(datetime.now()) + ": Start computing distances...")
-        #RecursivelyComputeDistances(roots, 0, edgesDict, childrenDict)
-        #print(str(datetime.now()) + ": Start writing distances...")
-        #CreateDirIfDoesNotExist(dirname1)
-        #WriteEdgesFile(edgesDict, dirname1)
+        print(str(datetime.now()) + ": Start computing distances...")
+        RecursivelyComputeDistances(roots, 0, edgesDict, childrenDict)
+        print(str(datetime.now()) + ": Start writing distances...")
+        CreateDirIfDoesNotExist(dirname1)
+        WriteEdgesFile(edgesDict, dirname1)
         print(str(datetime.now()) + ": Start embedding hierarchical...")
         RecursivelyEmbedHierarchical(roots, -1, 0, edgesDict, fixedCoordinate, coordinates, childrenDict, precision)
     else:
@@ -482,9 +485,9 @@ def Workflow(simGraphFile, clusteringHierarchyFile, metaDataFile, namesOfPropert
     CreateDirIfDoesNotExist(dirname1)
     RecursivelyCreateDataFileAndFolders(pointsDict, roots, 0, dirname1, childrenDict)
     if bigDataMode == "false": 
-        CreateSmallDataJSONFile(pointsDict, "data")
-    shutil.copyfile(namesOfPropertiesFile, os.path.join("data", "NamesOfProperties.json"))
-    CreateMetaDataFileForBigDataMode("data", bigDataMode)
+        CreateSmallDataJSONFile(pointsDict, dirname1)
+    shutil.copyfile(namesOfPropertiesFile, os.path.join(dirname1, "NamesOfProperties.json"))
+    CreateMetaDataFileForBigDataMode(dirname1, bigDataMode)
     print(str(datetime.now()) + ": Finished writing output.")
 #endregion
          
