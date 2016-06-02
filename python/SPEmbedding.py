@@ -46,10 +46,10 @@ args = parser.parse_args()
 
 #region Reading data
 
-def ReadTestFile():
-    with open('smalldata.json') as data_file:    
-        data = json.load(data_file)
-        return data
+#def ReadTestFile():
+#    with open('smalldata.json') as data_file:    
+#        data = json.load(data_file)
+#        return data
 
 def ReadMetaDataFile(metaDataFile):
     """File format: [id] [metadata] 
@@ -57,9 +57,9 @@ def ReadMetaDataFile(metaDataFile):
     metaDataDict = dict()
     for line in fileinput.input([metaDataFile]):
         if line != "\n":   
-            for items in csv.reader([line], delimiter='\t', quotechar='"'): 
+            for items in csv.reader([line], delimiter='\t', quotechar='"'): # tabs are delimiters, but qouted text counts as single word
                 id = items[0]     
-                items.pop(0)                             
+                items.pop(0) # remove the first item                            
                 metaDataDict[id] = items
     return metaDataDict
 
@@ -74,7 +74,7 @@ def ReadPropertiesIntensitiesFile(propertiesIntensitiesFile):
             intensitiesDict[id] = items
     return intensitiesDict
 
-def ReadSimilarityGraph(simGraphFile):
+def ReadSimilarityGraph(simGraphFile): # used in hierarchical embedding mode
     """Reads from simGraphFile, that has a format ' id1 id2 similarityScore '.
     Returns a dictionary with key = (id1, id2) and value = similarityScore."""
     similarityDict = dict()
@@ -84,7 +84,7 @@ def ReadSimilarityGraph(simGraphFile):
             similarityDict[items[0], items[1]] = float(items[2])                
     return similarityDict
     
-def ReadSimilarityGraph(simGraphFile, indexedKeys):
+def ReadSimilarityGraph(simGraphFile, indexedKeys):# used in flat embedding mode, indexed keys are used for fast random retrieval of a dictionary item
     """Reads from simGraphFile, that has a format ' id1 id2 similarityScore '.
     Returns a dictionary with key = (id1, id2) and value = similarityScore."""
     similarityDict = dict()
@@ -97,7 +97,7 @@ def ReadSimilarityGraph(simGraphFile, indexedKeys):
             i+=1
     return similarityDict
 
-def CombinePrefixesInPath(stringWithDots):
+def CombinePrefixesInPath(stringWithDots):# used only for the OMA data, because of its specific format
     listje = stringWithDots.split('.')
     path = []
     i = 0
@@ -110,19 +110,18 @@ def CombinePrefixesInPath(stringWithDots):
         i+=1
     return path
 
-def AddInterPaths(inter_paths, paths):
+def AddInterPaths(inter_paths, paths): # used only for the OMA data, because of its specific format
     for item in inter_paths:
         list_ofPrefixes = CombinePrefixesInPath(item)
         for prefix in list_ofPrefixes:
             paths[prefix] = CombinePrefixesInPath(prefix)
 
 
-def readClusteringHierarchy(clusteringHierarchyFile, isEmbeddingHierarchical):
-    """Reads file of format 'path id'. 
-    Path has a format id1.id2.id3.id4 if there are 4 levels in clustering hierarchy.
-    If idx is singleton after e.g. second level, path has a format id1.id2.idx.idx
-        
-    Returns a dictionary with key= id and value = [id1, id2, idr, id4] """
+def readClusteringHierarchy(clusteringHierarchyFile, isEmbeddingHierarchical):#specific to OMA data
+    #"""Reads file of format 'path id'. 
+    #Path has a format id1.id2.id3.id4 if there are 4 levels in clustering hierarchy.
+    #If idx is singleton after e.g. second level, path has a format id1.id2.idx.idx # to be updated        
+    #Returns a dictionary with key= id and value = [id1, id2, idr, id4] """
     paths = dict()
     if isEmbeddingHierarchical:
         inter_paths = []
@@ -145,6 +144,7 @@ def readClusteringHierarchy(clusteringHierarchyFile, isEmbeddingHierarchical):
         
 
 def MakeChildrenListPerParentPerLevel(pathsDict):
+    """Creates a Dictionary where key is parent id and value is a list. The entries of the list are lists of children at level=index of entry"""
     dictionary = dict()
     for key in pathsDict:
         level = 0
@@ -167,9 +167,10 @@ def MakeChildrenListPerParentPerLevel(pathsDict):
             level +=1
     return dictionary     
 
-def ConvertSimilarityGraphToDistance(similarityDict):
-    """Converts non-negative real-valued similary scores to distances between 0 and 1 """
-    maxScore = max(similarityDict.values()) * 1.01
+def ConvertSimilarityGraphToDistance(similarityDict): 
+    """Converts non-negative real-valued similary scores to distances between 0 and 1.
+        First the similarities are linearly scaled from [0, maxscore] to [0,1) and then distances are computed by dist = 1 - sim  """
+    maxScore = max(similarityDict.values()) * 1.01 # the factor 1.01 is to avoid having distance of 0 between items that are not equal
     if maxScore > 0:
         for key in similarityDict:
             similarityDict[key] = 1 - similarityDict[key] / maxScore # the distance is between 0 and 1
@@ -177,7 +178,7 @@ def ConvertSimilarityGraphToDistance(similarityDict):
         for key in similarityDict:
             similarityDict[key] = 1   
 
-def FindChildren(parent, level, childrenDict): 
+def FindChildren(parent, level, childrenDict): #runs in constant time
     """Returns a list of all direct children of parent at the given level. """     
     if parent in childrenDict and len(childrenDict[parent]) > level:
         return  childrenDict[parent][level]   
@@ -187,19 +188,17 @@ def FindChildren(parent, level, childrenDict):
 def InitializePointsRandomlyForHierarchical(keys,  parent,  fixedCoordinate, coordinates, level):
     """All objects in keys whose coordinates are not fixed yet are assigned random coordinates with values in (0,1)"""
     for key in keys:
-        if key not in fixedCoordinate:
-            #coordinates[key] = np.array([random.random(), random.random(), random.random()])                  
+        if key not in fixedCoordinate:               
             factor = math.pow(3, level+1)
             coordinates[key] = np.array([random.random()/factor, random.random()/factor, random.random()/factor]) - np.array([0.5/factor, 0.5/factor, 0.5/factor] )  
             if parent !=-1:
                 coordinates[key] += fixedCoordinate[parent]
     
 def InitializePointsRandomly(keys, parent, fixedCoordinate, coordinates):
-    """All objects in keys whose coordinates are not fixed yet are assigned random coordinates with values in (0,1)"""
+    """All objects in keys are assigned random coordinates with values in (0,1)"""
     for key in keys:
-        if True:#key not in fixedCoordinate.keys():
-            #coordinates[key] = np.array([random.random()/50, random.random()/50])
-            coordinates[key] = np.array([random.random()/50, random.random()/50, random.random()/50])   
+        if True:
+            coordinates[key] = np.array([random.random()/50, random.random()/50, random.random()/50])   # 50 is just a random factor, could be also 1
             if parent !=-1:
                 coordinates[key] += fixedCoordinate[parent]
 
@@ -238,13 +237,12 @@ def FixCoordinatesHierarchical(keys, parent, edgesDict, fixedCoordinate, coordin
 def FixCoordinates(keys, parent, edgesDict, fixedCoordinate, coordinates, level, indexedKeys, precision):
     """Implements the Stochastic Proximity Embedding algorithm to determine and fix the coordinates of objects with ids in keys.
     See https://www.researchgate.net/publication/10696705_Stochastic_proximity_embedding"""
-    lambd = 1.0           
-    epsilon = 0.00001             
+    lambd = 1.0  # lambd is the dumping factor (internal variable), it starts always from 1 and is gradually reduced to 0  with a step delta = 1.0 / cycles       
+    epsilon = 0.00001 # to avoid division by zero. Does not to be altered.             
     InitializePointsRandomly(keys, parent, fixedCoordinate, coordinates)#coordinates is a dictionary per parent id, value is a list of 3       
-    n = int(precision)
-    cycles = n
+    cycles = int(precision) # the number of outer cycles (that reduce the dumping factor lambda)
     numberOfPoints = len(keys)
-    steps = n* numberOfPoints
+    steps = int(precision)* numberOfPoints # the number of inner cycles, that pick two random points (a random edge actually) and adjust their coordinates so that the 3D euclidean distance fits better the theoretical distance
     delta = 1.0 / cycles
     while (lambd > 0):
         for count in range(0, steps):                        
@@ -253,32 +251,25 @@ def FixCoordinates(keys, parent, edgesDict, fixedCoordinate, coordinates, level,
             i = edge[0]
             j=edge[1]                
             if i!=j and i in coordinates and j in coordinates: # a workaround, in a good dataset this should always hold
-                dist = np.linalg.norm(coordinates[i] - coordinates[j])
-                rd = edgesDict[i,j]
-                #rd = 1/math.pow(3, level+1)
+                dist = np.linalg.norm(coordinates[i] - coordinates[j]) # the current distance
+                rd = edgesDict[i,j] # the theoretical distance
                 if dist != rd:                        
                     vec = coordinates[i] - coordinates[j]
-                    incr = lambd * 0.5 * (rd - dist) * vec / (dist + epsilon)                       
-                    #if i not in fixedCoordinate.keys() and j not in fixedCoordinate.keys():
+                    incr = lambd * 0.5 * (rd - dist) * vec / (dist + epsilon)                                           
                     coordinates[i] += incr
-                    coordinates[j] += (-1) * incr 
-                    #else:
-                        #if j not in fixedCoordinate.keys():
-                            #coordinates[j] += (-1) * incr *2
-                        #else:
-                            #coordinates[i] += incr *2                                                                                      
+                    coordinates[j] += (-1) * incr                                                                                                 
         lambd -= delta      
     for key in keys:
         fixedCoordinate[key] = coordinates[key]      
 
 
-def RecursivelyEmbedNoGrandparent(parents, level, edgesDict, fixedCoordinate, coordinates, childrenDict, precision):
-    """Embeds the hierarchicall data set in a hiearchical manner"""
-    FixCoordinates(parents, edgesDict, fixedCoordinate, coordinates, precision)
-    for parent in parents:
-        children = FindChildren(parent, level, childrenDict)
-        if len(children) > 0:
-            RecursivelyEmbed(children, level+1,  edgesDict, fixedCoordinate, coordinates, childrenDict, precision)     
+#def RecursivelyEmbedNoGrandparent(parents, level, edgesDict, fixedCoordinate, coordinates, childrenDict, precision):
+#    """Embeds the hierarchicall data set in a hiearchical manner"""
+#    FixCoordinates(parents, edgesDict, fixedCoordinate, coordinates, precision)
+#    for parent in parents:
+#        children = FindChildren(parent, level, childrenDict)
+#        if len(children) > 0:
+#            RecursivelyEmbed(children, level+1,  edgesDict, fixedCoordinate, coordinates, childrenDict, precision)     
     
 def RecursivelyEmbed(parents, grandparent, level,  edgesDict, fixedCoordinate, coordinates, childrenDict, indexedKeys, precision):
     """Embeds the hierarchical data set in a hiearchical manner"""
@@ -296,7 +287,7 @@ def RecursivelyEmbedHierarchical(parents, grandparent, level,  edgesDict, fixedC
         if len(children) > 0:
             RecursivelyEmbedHierarchical(children, parent, level+1,  edgesDict, fixedCoordinate, coordinates, childrenDict, precision)     
     
-def ComputeDistance(a,b, edgesDict, level, childrenDict):
+def ComputeDistance(a,b, edgesDict, level, childrenDict): # still experimental
     if a==b:
         return 0
     if (a,b) in edgesDict:
@@ -317,7 +308,7 @@ def ComputeDistance(a,b, edgesDict, level, childrenDict):
                 else: #if both sets of children are empty
                     return 1.0222
 
-def AverageDistance(set1, set2, level, edgesDict, childrenDict):
+def AverageDistance(set1, set2, level, edgesDict, childrenDict): # still experimental
     averageDist = 0
     for i in set1:
         j = random.choice(set2) # a faster variant than to double - cycle       
@@ -337,7 +328,7 @@ def AverageDistance(set1, set2, level, edgesDict, childrenDict):
 #    averageDist /= len(set1) * len(set2)
 #    return averageDist
 
-def RecursivelyComputeDistances(set, level, edgesDict, childrenDict):
+def RecursivelyComputeDistances(set, level, edgesDict, childrenDict): # still experimental
     print(str(datetime.now()) + ": Entered set:" + str(set)) 
     for key in set:
         children = FindChildren(key, level, childrenDict)
@@ -351,6 +342,12 @@ def RecursivelyComputeDistances(set, level, edgesDict, childrenDict):
                 edgesDict[set[i],set[j]] = dist
     print(str(datetime.now()) + ": Finished computations for set:" + str(set)) 
 
+def ComputeDistances():# experimental, for hierarchical embedding
+    print(str(datetime.now()) + ": Start computing distances...")
+    RecursivelyComputeDistances(roots, 0, edgesDict, childrenDict)
+    print(str(datetime.now()) + ": Start writing distances...")
+    CreateDirIfDoesNotExist(dirname1)
+    WriteEdgesFile(edgesDict, dirname1)
 
 #region Write output
 
@@ -434,7 +431,7 @@ def ConvertCoordinatesToList(fixedCoordinate):
     for key in fixedCoordinate:
         fixedCoordinate[key] = list(fixedCoordinate[key])
                        
-def Workflow(simGraphFile, clusteringHierarchyFile, metaDataFile, namesOfPropertiesFile, propertiesIntensitiesFile, baseDir, bigDataMode = "true", isEmbeddingHierarchical= True, isOSWindows = False, precision = 30):
+def Workflow(simGraphFile, clusteringHierarchyFile, metaDataFile, namesOfPropertiesFile, propertiesIntensitiesFile, baseDir, bigDataMode = "true", isEmbeddingHierarchical= False, isOSWindows = False, precision = 30):
     """ Runs all functions to read, embed in 3D and write data.
     simGraphFile contains the sparse similarity matrix.  Format: [id1] [id2]  [similarityScore] 
     clusteringHierarchyFile contains path in tree for every id. Format: [parent1ID.parent2ID.parent3ID.....parentNID] [id]
@@ -458,7 +455,7 @@ def Workflow(simGraphFile, clusteringHierarchyFile, metaDataFile, namesOfPropert
         intensitiesDict = "no"
     indexedKeys = []
     if isEmbeddingHierarchical:
-        edgesDict = ReadSimilarityGraph(simGraphFile, indexedKeys)
+        edgesDict = ReadSimilarityGraph(simGraphFile)
     else: 
         edgesDict = ReadSimilarityGraph(simGraphFile,indexedKeys)
     ConvertSimilarityGraphToDistance(edgesDict)
@@ -469,11 +466,7 @@ def Workflow(simGraphFile, clusteringHierarchyFile, metaDataFile, namesOfPropert
     print(str(datetime.now()) + ": Start ..")
     roots = ExtractRoots(pathsDict)        
     if isEmbeddingHierarchical:
-        #print(str(datetime.now()) + ": Start computing distances...")
-        #RecursivelyComputeDistances(roots, 0, edgesDict, childrenDict)
-        #print(str(datetime.now()) + ": Start writing distances...")
-        #CreateDirIfDoesNotExist(dirname1)
-        #WriteEdgesFile(edgesDict, dirname1)
+
         print(str(datetime.now()) + ": Start embedding hierarchical...")
         RecursivelyEmbedHierarchical(roots, -1, 0, edgesDict, fixedCoordinate, coordinates, childrenDict, precision)
     else:
@@ -497,7 +490,7 @@ def Workflow(simGraphFile, clusteringHierarchyFile, metaDataFile, namesOfPropert
 #Workflow("sim.txt", "clusters.txt", "oma-hogs_banana.meta", "NamesOfProperties.json","No", os.getcwd(), "false", True, True, 1 )
 #Workflow("MUSAC-MUSAM.graph", "oma-hogs_banana.cls", "oma-hogs_banana.meta", "NamesOfProperties.json","No", os.getcwd(), "false", True, True, 1 )
 #calling in flat embedding mode
-#Workflow("MUSAC-MUSAM.graph", "oma-hogs_banana.cls", "oma-hogs_banana.meta", "NamesOfProperties.json","No", "false", False, True, 2)
+#Workflow("MUSAC-MUSAM.graph", "oma-hogs_banana.cls", "oma-hogs_banana.meta", "NamesOfProperties.json","No", os.getcwd(),"false", False, True, 1)
 
 Workflow(args.graphFile, args.clustFile, args.metaFile, "NamesOfProperties.json","No", args.baseDir, "false", False, False, args.precision)
 #endregion
