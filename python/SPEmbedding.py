@@ -240,9 +240,9 @@ def FixCoordinates(keys, parent, edgesDict, fixedCoordinate, coordinates, level,
     lambd = 1.0  # lambd is the dumping factor (internal variable), it starts always from 1 and is gradually reduced to 0  with a step delta = 1.0 / cycles       
     epsilon = 0.00001 # to avoid division by zero. Does not to be altered.             
     InitializePointsRandomly(keys, parent, fixedCoordinate, coordinates)#coordinates is a dictionary per parent id, value is a list of 3       
-    cycles = int(precision) # the number of outer cycles (that reduce the dumping factor lambda)
+    cycles = int(precision) *10 # the number of outer cycles (that reduce the dumping factor lambda)
     numberOfPoints = len(keys)
-    steps = int(precision)* numberOfPoints # the number of inner cycles, that pick two random points (a random edge actually) and adjust their coordinates so that the 3D euclidean distance fits better the theoretical distance
+    steps = 10 * numberOfPoints # the number of inner cycles, that pick two random points (a random edge actually) and adjust their coordinates so that the 3D euclidean distance fits better the theoretical distance
     delta = 1.0 / cycles
     while (lambd > 0):
         for count in range(0, steps):                        
@@ -431,14 +431,16 @@ def ConvertCoordinatesToList(fixedCoordinate):
     for key in fixedCoordinate:
         fixedCoordinate[key] = list(fixedCoordinate[key])
                        
-def Workflow(simGraphFile, clusteringHierarchyFile, metaDataFile, namesOfPropertiesFile, propertiesIntensitiesFile, baseDir, bigDataMode = "true", isEmbeddingHierarchical= False, isOSWindows = False, precision = 30):
+def Workflow(simGraphFile, clusteringHierarchyFile, metaDataFile, namesOfPropertiesFile, propertiesIntensitiesFile, baseDir, bigDataMode = "true", isEmbeddingHierarchical= False, isOSWindows = False, precision = 10):
     """ Runs all functions to read, embed in 3D and write data.
     simGraphFile contains the sparse similarity matrix.  Format: [id1] [id2]  [similarityScore] 
     clusteringHierarchyFile contains path in tree for every id. Format: [parent1ID.parent2ID.parent3ID.....parentNID] [id]
     metaDataFile contains text that is displayed for every point. Format: [id] ["line1text"] ["line2text"] ... ["lineNtext"]
     namesOfPropertiesFile contains the names of the properties, the intensities of which are given in file propertiesIntensitiesFile. It must be a json file. Format : [ ["PropertyName1", "PropertyName2", ... "PropertyNameN"] ]. E.g. ["Age", "Size"]       
     propertiesIntensitiesFile contains the intensities of the properties per point. Format: [id] [intensityProperty1] [intensityProperty2] ... [intensityPropertyN]
-    bigDataMode is "true" or "false", depending on the mode in which the application should run. If "false", then there is a slidebar for loading all points up to a level"""        
+    bigDataMode is "true" or "false", depending on the mode in which the application should run. If "false", then there is a slidebar for loading all points up to a level
+    isOSWindows - selfexplanatory. Important in case the paths are long.
+    precision: between 1 and 10. The higher, the more precise the embedding"""        
     print(str(datetime.now()) + ": Removing old data...")
     dirname1 =  os.path.join(baseDir, "data")
     if isOSWindows:
