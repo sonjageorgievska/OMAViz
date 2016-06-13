@@ -233,31 +233,40 @@ def FixCoordinatesHierarchical(keys, parent, edgesDict, fixedCoordinate, coordin
         lambd -= delta      
     for key in keys:
         fixedCoordinate[key] = coordinates[key]      
-    
+ 
+def MovePointsAwayFromOrTowardsEachOther(coordinates, i,j, lambd, rd, dist, epsilon):
+    vec = coordinates[i] - coordinates[j]
+    incr = lambd * 0.5 * (rd - dist) * vec / (dist + epsilon)                                           
+    coordinates[i] += incr
+    coordinates[j] += (-1) * incr
+
+def PickARandomEdge(indexedKeys):
+    index = random.randint(0, len(indexedKeys)-1)               
+    edge = indexedKeys[index]
+    return edge
+                              
 def FixCoordinates(keys, parent, edgesDict, fixedCoordinate, coordinates, level, indexedKeys, precision):
     """Implements the Stochastic Proximity Embedding algorithm to determine and fix the coordinates of objects with ids in keys.
-    See https://www.researchgate.net/publication/10696705_Stochastic_proximity_embedding"""
+    See https://www.researchgate.net/publication/10696705_Stochastic_proximity_embedding.
+    keys: the ids of the data points that should be embedded.
+    parent: a dummy variable, always set to 0. should be removed eventually."""
     lambd = 1.0  # lambd is the dumping factor (internal variable), it starts always from 1 and is gradually reduced to 0  with a step delta = 1.0 / cycles       
     epsilon = 0.00001 # to avoid division by zero. Does not to be altered.             
     InitializePointsRandomly(keys, parent, fixedCoordinate, coordinates)#coordinates is a dictionary per parent id, value is a list of 3       
-    cycles = int(precision) *10 # the number of outer cycles (that reduce the dumping factor lambda)
+    cycles = int(precision) # the number of outer cycles (that reduce the dumping factor lambda)
     numberOfPoints = len(keys)
     steps = 10 * numberOfPoints # the number of inner cycles, that pick two random points (a random edge actually) and adjust their coordinates so that the 3D euclidean distance fits better the theoretical distance
     delta = 1.0 / cycles
     while (lambd > 0):
-        for count in range(0, steps):                        
-            index = random.randint(0, len(indexedKeys)-1)               
-            edge = indexedKeys[index]
+        for count in range(0, steps):  
+            edge = PickARandomEdge(indexedKeys)                                                             
             i = edge[0]
-            j=edge[1]                
+            j = edge[1]                
             if i!=j and i in coordinates and j in coordinates: # a workaround, in a good dataset this should always hold
                 dist = np.linalg.norm(coordinates[i] - coordinates[j]) # the current distance
                 rd = edgesDict[i,j] # the theoretical distance
                 if dist != rd:                        
-                    vec = coordinates[i] - coordinates[j]
-                    incr = lambd * 0.5 * (rd - dist) * vec / (dist + epsilon)                                           
-                    coordinates[i] += incr
-                    coordinates[j] += (-1) * incr                                                                                                 
+                    MovePointsAwayFromOrTowardsEachOther(coordinates, i,j, lambd, rd, dist, epsilon)                                                                                                 
         lambd -= delta      
     for key in keys:
         fixedCoordinate[key] = coordinates[key]      
@@ -440,7 +449,7 @@ def Workflow(simGraphFile, clusteringHierarchyFile, metaDataFile, namesOfPropert
     propertiesIntensitiesFile contains the intensities of the properties per point. Format: [id] [intensityProperty1] [intensityProperty2] ... [intensityPropertyN]
     bigDataMode is "true" or "false", depending on the mode in which the application should run. If "false", then there is a slidebar for loading all points up to a level
     isOSWindows - selfexplanatory. Important in case the paths are long.
-    precision: between 1 and 10. The higher, the more precise the embedding"""        
+    precision: between 1 and 100. The higher, the more precise the embedding"""        
     print(str(datetime.now()) + ": Removing old data...")
     dirname1 =  os.path.join(baseDir, "data")
     if isOSWindows:
