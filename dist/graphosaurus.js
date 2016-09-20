@@ -15474,7 +15474,7 @@ THREE.EventDispatcher.prototype = {
 
 
 
-		precision: 0.0001,
+		precision: 0.00001,
         //precision: 0.0000000001,//by sonja
 		linePrecision: 1,
 
@@ -71655,6 +71655,8 @@ module.exports = (function () {
     };
 
     Frame.prototype.forceRerender = function () {
+        
+        
         this.renderer.render(this.scene, this.camera);
     };
 
@@ -71682,6 +71684,17 @@ module.exports = (function () {
 	};
 
     //added by sonja
+    Frame.prototype.reDrawMeWithoutSizeAttenuation = function () {
+
+        this._initNodesWithoutSizeAttenuation(this.graph.getNodes());
+        this._initEdges(this.graph.getEdges());
+        this.positionCamera();
+        this.forceRerender();
+
+        //this._animateAgain();
+    };
+
+    //added by sonja
     Frame.prototype.reDrawMeInSameScene = function () {
   
 	    var nodes = this.graph.getNodes(); 
@@ -71691,6 +71704,17 @@ module.exports = (function () {
 
 	    //this._animateAgain();
 	};
+
+    //added by sonja
+    Frame.prototype.reDrawMeInSameSceneWithoutSizeAttenuation = function () {
+
+        var nodes = this.graph.getNodes();
+        this._initNodesWithoutSizeAttenuation(nodes);
+        this._initEdges(this.graph.getEdges());
+        this.forceRerender();
+
+        //this._animateAgain();
+    };
 
     Frame.prototype._initControls = function (elem) {
         var self = this;
@@ -71730,7 +71754,7 @@ module.exports = (function () {
         var material = new THREE.PointCloudMaterial({
             size: this.graph._nodeSize,
             vertexColors: true,
-            sizeAttenuation: this.graph._sizeAttenuation,
+            sizeAttenuation: this.graph._sizeAttenuation,            
             depthWrite: false,
         });
        
@@ -71788,6 +71812,72 @@ module.exports = (function () {
 
 
     };
+    
+    Frame.prototype._initNodesWithoutSizeAttenuation = function (nodes) {
+        var self = this;
+
+        var material = new THREE.PointCloudMaterial({
+            size: 10,
+            vertexColors: true,
+            sizeAttenuation: false, 
+            depthWrite: false,
+        });
+
+        if (this.graph._nodeImage !== undefined) {
+            var texture = THREE.ImageUtils.loadTexture(
+                this.graph._nodeImage, undefined, function () {
+                    // Force a rerender after node image has finished loading
+                    self.forceRerender();
+                });
+            material.map = texture;
+        }
+
+        var positions = new THREE.BufferAttribute(
+            new Float32Array(nodes.length * 3), 3);
+        var colors = new THREE.BufferAttribute(
+            new Float32Array(nodes.length * 3), 3);
+        //ids added by Sonja
+
+        var ids = new THREE.BufferAttribute( //added by sonja to be able to detect properly clicked nodes. previously it was detecting completely different nodes
+            new Int32Array(nodes.length * 1), 1);
+
+        var sizes = new Float32Array(nodes.length);
+
+
+        for (var i = 0; i < nodes.length; i++) {
+            var node = nodes[i];
+            var pos = node._pos;
+            var color = node._color;
+
+            positions.setXYZ(i, pos.x, pos.y, pos.z);
+            colors.setXYZ(i, color.r, color.g, color.b);
+            ids.setX(i, i);
+            //sizes[i] = i % 20;
+        }
+        this.points = new THREE.BufferGeometry();
+        this.points.addAttribute('position', positions);
+        this.points.addAttribute('color', colors);
+        this.points.addAttribute('id', ids);
+        //this.points.addAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+        pointsSet = this.points;
+
+        this.scene.remove(this.pointCloud);
+
+        this.pointCloud = new THREE.PointCloud(this.points, material);
+
+        if (this.graph._nodeImageTransparent === true) {
+            material.transparent = true;
+            this.pointCloud.sortParticles = true;
+        }
+
+
+
+        this.scene.add(this.pointCloud);
+
+
+    };
+
 
     Frame.prototype._normalizeNodes = function () {
         this.points.computeBoundingSphere();
@@ -71851,9 +71941,9 @@ module.exports = (function () {
         this.scene.add(this.line);
     }; 
 
-   
+  
 
-    Frame.prototype._initMouseEvents = function (elem) {
+    Frame.prototype._initMouseEvents_orig = function (elem) {
         var self = this;
         var createMouseHandler = function (callback) {
             var raycaster = new THREE.Raycaster();
@@ -71921,6 +72011,42 @@ module.exports = (function () {
 
     };
 
+    Frame.prototype._initMouseEvents = function (elem) {
+        var self = this;
+        var createMouseHandler = function (callback) {
+        var raycaster = new THREE.Raycaster();
+        var mouse = new THREE.Vector2();
+
+            return function (evt) {
+                evt.preventDefault();
+
+                mouse.x = ((evt.clientX - frameStartsAt) / (window.innerWidth - frameStartsAt)) * 2 - 1;
+                mouse.y = 1 - (evt.clientY / window.innerHeight) * 2;
+
+                raycaster.setFromCamera(mouse, self.camera);
+                var intersects = raycaster.intersectObject(self.pointCloud, true);
+                if (intersects.length) {
+                    var firstIndex = intersects[0].index;                   
+                    callback(self.graph._nodes[firstIndex]);
+                }                
+            };
+        };
+
+        if (this.graph._hover) {
+            elem.addEventListener(
+                'mousemove', createMouseHandler(this.graph._hover), false);
+        }
+
+        if (this.graph._click) {
+            elem.addEventListener(
+                'click', createMouseHandler(this.graph._click), false);
+        }
+        if (this.graph._mousedown) {
+            elem.addEventListener(
+                'mousedown', createMouseHandler(this.graph._mousedown), false);
+        }
+
+    };
     Frame.prototype._updateCameraBounds = (function () {
         var prevCameraPos;
         return function () {
@@ -71939,7 +72065,7 @@ module.exports = (function () {
                 this.camera.updateProjectionMatrix();
             }
             else {
-                this.camera.near = 0.1;
+                this.camera.near = 0.001;//XXXXXXXXXXXXXXXXXXXXXX
                 this.camera.far = boundingSphere.radius * 2;
                 this.camera.updateProjectionMatrix();
             }

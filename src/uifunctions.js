@@ -25,7 +25,7 @@ function KeyPress(e) {//if the key combination is ctrl+z, then it will close the
 
  function searchSequence() {
      var value = document.getElementById("search").value;
-     SearchAndColorizeByName(value);
+     SearchAndColorizeByExpression(value);
  }
 
 
